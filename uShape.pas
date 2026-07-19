@@ -37,6 +37,7 @@ type
       m:MaterialClass;
       BoundBox:AABBRecord;
       constructor Create(p_,e_,c_:Vec3;refl_:RefType);virtual;
+      procedure SetAttrib(e_,c_:Vec3;refl_:RefType);virtual;
       function intersect(const r:RayRecord):InterInfo;virtual;abstract;
       function GetNorm(x:Vec3):Vec3;virtual;abstract;
    end;
@@ -108,13 +109,18 @@ begin
    result:=true;
 end;
 
-constructor ShapeClass.Create(p_,e_,c_:Vec3;refl_:RefType);
+procedure ShapeClass.SetAttrib(e_,c_:Vec3;refl_:RefType);
 begin
-   p:=p_;
    tx:=TextureClass.Create(e_,c_);
    if refl_=DIFF then m:=DiffuseClass.Create;
    if refl_=SPEC then m:=MirrorClass.Create;
    if refl_=REFR then m:=RefractClass.Create;
+end;
+
+constructor ShapeClass.Create(p_,e_,c_:Vec3;refl_:RefType);
+begin
+   p:=p_;
+   SetAttrib(e_,c_,refl_);
 end;
 
 

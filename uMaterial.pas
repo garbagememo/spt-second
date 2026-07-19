@@ -58,7 +58,7 @@ function MirrorClass.GetRay(r:RayRecord;x,n,nl:Vec3):TraceInfo;
 var
    ray2:RayRecord;
 begin
-   result.r:=ray2.new(x,r.d-n*2*(n*r.d) );
+   result.r:=ray2.new(x,r.d-nl*2*(nl*r.d) );//オリジナルはnlではなくnなので不安があるが
    result.cpc:=1.0;
 end;
 

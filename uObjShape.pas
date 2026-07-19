@@ -8,18 +8,27 @@ interface
 uses SysUtils,Classes,uVect,uBMP,Math,getopts,uMaterial,uShape;
 
 type
-  PolygonClass = class(ShapeClass)
-     v0, v1, v2, n: Vec3;
-     constructor Create(const v0_, v1_, v2_, n_, e_, c_: Vec3; refl_:RefType); reintroduce;
-     function intersect(const r:RayRecord):InterInfo;override;
-     function GetNorm(x:Vec3):Vec3;override;
-     procedure dump;
-  end;
+   PolygonClass = class(ShapeClass)
+      v0, v1, v2, n: Vec3;
+      constructor Create(const v0_, v1_, v2_, n_, e_, c_: Vec3; refl_:RefType); reintroduce;
+      function intersect(const r:RayRecord):InterInfo;override;
+      function GetNorm(x:Vec3):Vec3;override;
+      procedure dump;
+   end;
 
-  procedure LoadObjFile(FN:string;Shapes:TList);
-  procedure SetAttribShapeList(Shapes:TList;e_,c_:Vec3;refl_:RefType);
+   procedure LoadObjFile(FN:string;Shapes:TList);
+   procedure SetAttribShapeList(Shapes:TList;e_,c_:Vec3;refl_:RefType);
 
 implementation
+
+// 複数属性の管理用レコード体
+type
+   TMaterialRecord = record
+      Name: string;
+      Color: Vec3;
+      Emit: Vec3;
+      Refl: RefType;
+   end;
 
 constructor PolygonClass.Create(const v0_, v1_, v2_, n_, e_, c_: Vec3; refl_: RefType);
 var
@@ -74,43 +83,41 @@ begin
 end;
 
 procedure PolygonClass.dump;
-  procedure WriteVec(v:Vec3);
-  begin
-     write('(',v.x:8:3,':',v.y:8:3,':',v.z:8:3,')');
-  end;
+procedure WriteVec(v:Vec3);
 begin
-   write('v0='); writeVec(v0);
-   write(' v1='); writeVec(v1);
-   write(' v2='); writeVec(v2);
-   write(' n=');writeVec(n);
-  writeln;
+   write('@',v.x:8:3,':',v.y:8:3,':',v.z:8:3);
+end;
+begin
+   
+   write('V0=');writeVec(v0);write(' V1=');  writeVec(v1);write('v2=');  writeVec(v2); write('n='); writeVec(n);
+   writeln;
 end;
 
 
 procedure LoadObjFile(FN:string;Shapes:TList);
 // fトークンから要素（v/vt/vn）を安全に分解抽出するヘルパー関数
-  procedure ParseFaceToken(token: string; var vIdx, nIdx: Integer);
-  var
-     p1, p2: Integer;
-     vStr, nStr: string;
-  begin
-     vIdx := 0; nIdx := 0;
-     p1 := Pos('/', token);
-     if p1 = 0 then begin
-        vIdx := StrToInt(token);
-        exit;
-     end;
-     vStr := Copy(token, 1, p1 - 1);
-     if vStr <> '' then vIdx := StrToInt(vStr);
+procedure ParseFaceToken(token: string; var vIdx, nIdx: Integer);
+var
+   p1, p2: Integer;
+   vStr, nStr: string;
+begin
+   vIdx := 0; nIdx := 0;
+   p1 := Pos('/', token);
+   if p1 = 0 then begin
+      vIdx := StrToInt(token);
+      exit;
+   end;
+   vStr := Copy(token, 1, p1 - 1);
+   if vStr <> '' then vIdx := StrToInt(vStr);
    
-     Delete(token, 1, p1);
-     p2 := Pos('/', token);
-     if p2 = 0 then exit; // vnなし (v/vt のケース)
+   Delete(token, 1, p1);
+   p2 := Pos('/', token);
+   if p2 = 0 then exit; // vnなし (v/vt のケース)
    
-     // v//vn または v/vt/vn のケースにおける vn の抽出
-     nStr := Copy(token, p2 + 1, MaxInt);
-     if nStr <> '' then nIdx := StrToInt(nStr);
-  end;
+   // v//vn または v/vt/vn のケースにおける vn の抽出
+   nStr := Copy(token, p2 + 1, MaxInt);
+   if nStr <> '' then nIdx := StrToInt(nStr);
+end;
 
 var
    f: TextFile;
@@ -124,30 +131,68 @@ var
    dummy: Integer;
    mRefl: RefType;
    mColor: Vec3;
+   mEmit: Vec3; // 追加：現在の発光色用変数
    polyN: Vec3;
    poly: PolygonClass;
+   
+   // 複数マテリアル管理用の動的配列
+   materials: array of TMaterialRecord;
+   mCount: Integer;
 begin
    if Not(Assigned(Shapes) ) then writeln('Shapes is not assigned!!');
-   vCount := 0; nCount := 0; mRefl := DIFF; mColor.new(0.8, 0.8, 0.8);
+   vCount := 0; nCount := 0; mCount := 0;
+   mRefl := DIFF; mColor.new(0.8, 0.8, 0.8); mEmit.new(0.0, 0.0, 0.0);
    mtlFile := ChangeFileExt(FN, '.mtl');
    
+   // 1. MTLファイルの解析
    if FileExists(mtlFile) then begin
       AssignFile(f, mtlFile); Reset(f);
       while not Eof(f) do begin
          Readln(f, line); line := Trim(line);
          if line = '' then Continue;
          token := Copy(line, 1, Pos(' ', line + ' ') - 1);
-         if token = 'Kd' then begin
-            line := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
-            x := StrToFloat(Copy(line, 1, Pos(' ', line + ' ') - 1));
-            line := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
-            y := StrToFloat(Copy(line, 1, Pos(' ', line + ' ') - 1));
-            z := StrToFloat(Trim(Copy(line, Pos(' ', line) + 1, MaxInt)));
-            mColor.New(x, y, z);
+         
+         if token = 'newmtl' then begin
+            Inc(mCount);
+            SetLength(materials, mCount);
+            materials[mCount - 1].Name := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
+            // デフォルト値の割り当て（基本は乱反射・無発光）
+            materials[mCount - 1].Color.New(0.8, 0.8, 0.8);
+            materials[mCount - 1].Emit.New(0.0, 0.0, 0.0);
+            materials[mCount - 1].Refl := DIFF;
+         end
+         else if token = 'Kd' then begin
+            if mCount > 0 then begin
+               line := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
+               x := StrToFloat(Copy(line, 1, Pos(' ', line + ' ') - 1));
+               line := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
+               y := StrToFloat(Copy(line, 1, Pos(' ', line + ' ') - 1));
+               z := StrToFloat(Trim(Copy(line, Pos(' ', line) + 1, MaxInt)));
+               materials[mCount - 1].Color.New(x, y, z);
+            end;
+         end
+         else if token = 'Ke' then begin // 追加：発光色の読み込み
+            if mCount > 0 then begin
+               line := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
+               x := StrToFloat(Copy(line, 1, Pos(' ', line + ' ') - 1));
+               line := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
+               y := StrToFloat(Copy(line, 1, Pos(' ', line + ' ') - 1));
+               z := StrToFloat(Trim(Copy(line, Pos(' ', line) + 1, MaxInt)));
+               materials[mCount - 1].Emit.New(x, y, z);
+            end;
          end
          else if token = 'illum' then begin
-            dummy := StrToIntDef(Trim(Copy(line, Pos(' ', line) + 1, MaxInt)), 0);
-            if dummy >= 3 then mRefl := SPEC;
+            if mCount > 0 then begin
+               dummy := StrToIntDef(Trim(Copy(line, Pos(' ', line) + 1, MaxInt)), 0);
+               if dummy = 3 then
+                  materials[mCount - 1].Refl := SPEC   // 鏡面反射
+               else if dummy >= 4 then
+                  materials[mCount - 1].Refl := REFR;  // 透明体・屈折（ガラス等）
+            end;
+         end
+         else if token = 'Ni' then begin // 追加：屈折率の定義があれば透明体(REFR)に設定
+            if mCount > 0 then
+               materials[mCount - 1].Refl := REFR;
          end;
       end;
       CloseFile(f);
@@ -155,14 +200,27 @@ begin
 
    if not FileExists(FN) then Exit;
    
+   // 2. OBJファイルの解析
    AssignFile(f, FN); Reset(f);
    while not Eof(f) do begin
       Readln(f, line); line := Trim(line);
       if line = '' then Continue;
       token := Copy(line, 1, Pos(' ', line + ' ') - 1);
       
+      // 追加：マテリアルの指定（切り替え）
+      if token = 'usemtl' then begin
+         token := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
+         for dummy := 0 to mCount - 1 do begin
+            if materials[dummy].Name = token then begin
+               mColor := materials[dummy].Color;
+               mEmit  := materials[dummy].Emit;
+               mRefl  := materials[dummy].Refl;
+               Break;
+            end;
+         end;
+      end
       // 頂点座標の読み込み
-      if token = 'v' then begin
+      else if token = 'v' then begin
          line := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
          x := StrToFloat(Copy(line, 1, Pos(' ', line + ' ') - 1));
          line := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
@@ -172,7 +230,7 @@ begin
          Inc(vCount); SetLength(vertices, vCount);
          vertices[vCount - 1].new(x, y, z);
       end
-         // 法線ベクトル (vn) の読み込み対応
+      // 法線ベクトル (vn) の読み込み対応
       else if token = 'vn' then begin
          line := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
          x := StrToFloat(Copy(line, 1, Pos(' ', line + ' ') - 1));
@@ -183,7 +241,7 @@ begin
          Inc(nCount); SetLength(normals, nCount);
          normals[nCount - 1].New(x, y, z);
       end
-         // 面情報の読み込み
+      // 面情報の読み込み
       else if token = 'f' then begin
          line := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
          t1 := Copy(line, 1, Pos(' ', line + ' ') - 1);
@@ -195,16 +253,16 @@ begin
          ParseFaceToken(t2, p2, n2);
          ParseFaceToken(t3, p3, n3);
          
-         // 法線(vn)データが存在する場合はそのインデックスから割り当て(代表して1番目の頂点の法線を採用)
          if (n1 > 0) and (n1 <= nCount) then
             polyN := normals[n1 - 1]
          else
-            polyN.New(0, 0, 0); // Create内で自動的に計算させる
+            polyN.New(0, 0, 0);
          
+         // 修正：第5引数に ZeroVec ではなくパースした発光色 mEmit を渡す
          poly := PolygonClass.Create(vertices[p1 - 1],
                                      vertices[p2 - 1],
                                      vertices[p3 - 1],
-                                     polyN, ZeroVec, mColor, mRefl);
+                                     polyN, mEmit, mColor, mRefl);
          Shapes.Add(poly);
          Poly.dump;
       end;
@@ -218,15 +276,8 @@ var
    i:integer;
 begin
    for i:=0 to Shapes.count-1 do begin
-      ShapeClass(Shapes[i]).tx:=TextureClass.Create(e_,c_);
-      if refl_=DIFF then ShapeClass(Shapes[i]).m:=DiffuseClass.Create;
-      if refl_=SPEC then ShapeClass(Shapes[i]).m:=MirrorClass.Create;
-      if refl_=REFR then ShapeClass(Shapes[i]).m:=RefractClass.Create;
+      ShapeClass(Shapes[i]).SetAttrib(e_,c_,refl_);
    end;
 end;
-
-
-
 begin
 end.
-
