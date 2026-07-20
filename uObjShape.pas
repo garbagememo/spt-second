@@ -83,12 +83,7 @@ begin
 end;
 
 procedure PolygonClass.dump;
-procedure WriteVec(v:Vec3);
 begin
-   write('@',v.x:8:3,':',v.y:8:3,':',v.z:8:3);
-end;
-begin
-   
    write('V0=');writeVec(v0);write(' V1=');  writeVec(v1);write('v2=');  writeVec(v2); write('n='); writeVec(n);
    writeln;
 end;

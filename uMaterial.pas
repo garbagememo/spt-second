@@ -14,15 +14,19 @@ type
    
    MaterialClass=class
       function GetRay(r:RayRecord;x,n,nl:Vec3):TraceInfo;virtual;abstract;
+      function IDStr:string;virtual;abstract;
    end;
    DiffuseClass=Class(MaterialClass)
       function GetRay(r:RayRecord;x,n,nl:Vec3):TraceInfo;override;
+      function IDStr:string;override;
    end;
    MirrorClass=Class(MaterialClass)
       function GetRay(r:RayRecord;x,n,nl:Vec3):TraceInfo;override;
+      function IDStr:string;override;
    end;
    RefractClass=Class(MaterialClass)
       function GetRay(r:RayRecord;x,n,nl:Vec3):TraceInfo;override;
+      function IDStr:string;override;
    end;
 
    TextureClass=class
@@ -53,6 +57,10 @@ begin
    result.r:=ray2.new(x,d);
    result.cpc:=1.0;
 end;
+function DiffuseClass.IDStr:string;
+begin
+   result:='DIFF';
+end;
 
 function MirrorClass.GetRay(r:RayRecord;x,n,nl:Vec3):TraceInfo;
 var
@@ -60,6 +68,10 @@ var
 begin
    result.r:=ray2.new(x,r.d-nl*2*(nl*r.d) );//オリジナルはnlではなくnなので不安があるが
    result.cpc:=1.0;
+end;
+function MirrorClass.IDStr:string;
+begin
+   result:='SPEC';
 end;
 
 
@@ -95,6 +107,10 @@ begin
       result.r:=ray2.new(x,tdir);
       result.cpc:=TP;
    end;
+end;
+function RefractClass.IDStr:string;
+begin
+   result:='REFR';
 end;
 
 

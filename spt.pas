@@ -198,17 +198,13 @@ begin
    writeln('output=',FN);
    BMP.new(w,h);
    sc.new;
-   
+
    Randomize;
    cam.new(camPosition.new(50, 52, 295.6),camDirection.new(0, -0.042612, -1).norm,w,h,samps );
    case modelnum of
       40:begin
             TestScene(sc.scList);
-            cam.new(camPosition.new(-10,150,220),
-                    camDirection.new(0,-150,-200).norm,
-                    w,h,samps);
-            cam.PlaneDist:=70;
-         end;
+          end;
       30:begin
             InitObjScene(sc.scList);
          end;

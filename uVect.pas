@@ -38,6 +38,7 @@ const
 
 function VecAdd3(V1,V2,V3:Vec3):Vec3;
 procedure VecWriteln(V:Vec3);
+procedure WriteVec(v:Vec3);
 
 operator * (const v1:Vec3;const r:real)v:Vec3;inline;
 operator / (const v1:Vec3;const r:real)v:Vec3;inline;
@@ -111,6 +112,10 @@ end;
 procedure VecWriteln(V:Vec3);
 begin
     writeln(v.x:8:3,':',v.y:8:3,':',v.z:8:3);
+end;
+procedure WriteVec(v:Vec3);
+begin
+   write('@',v.x:8:3,':',v.y:8:3,':',v.z:8:3);
 end;
 
 

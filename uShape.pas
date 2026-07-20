@@ -40,6 +40,7 @@ type
       procedure SetAttrib(e_,c_:Vec3;refl_:RefType);virtual;
       function intersect(const r:RayRecord):InterInfo;virtual;abstract;
       function GetNorm(x:Vec3):Vec3;virtual;abstract;
+      procedure DumpM;
    end;
    
    SphereClass=class(ShapeClass)
@@ -160,6 +161,11 @@ end;
 function SphereClass.GetNorm(x:Vec3):Vec3;
 begin
   result:=(x-p).norm;
+end;
+
+procedure ShapeClass.DumpM;
+begin
+  write('ref=',m.IDStr,' e=');WriteVec(tx.e);write(' c=');WriteVec(tx.c);
 end;
 
 
