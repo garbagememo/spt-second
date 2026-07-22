@@ -6,19 +6,20 @@
 interface
 uses SysUtils,Classes,uVect,uBMP,Math,getopts,uMaterial,uShape,uBVH,uObjShape,uRadiance;
 
-      procedure InitScene(scList:TList);
-      procedure InitObjScene(scList:TList);
-      procedure InitNEScene(scList:TList);
-      procedure SkyScene(scList:TList);
-      procedure ForestScene(scList:TList);
-      procedure WadaScene(scList:TList);
-      procedure RandomScene(scList:TList);
-      procedure SpiralScene(scList:TList);
-      procedure IslandScene(scList:TList);
-      procedure BVHRandomScene(scList:TList);
-      procedure EvenlySpiralScene(scList:TList);
-      procedure TeapotScene(scList:TList);
-      procedure BunnyScene(scList:TList);
+  procedure InitScene(scList:TList);
+  procedure InitObjScene(scList:TList);
+  procedure InitNEScene(scList:TList);
+  procedure SkyScene(scList:TList);
+  procedure ForestScene(scList:TList);
+  procedure WadaScene(scList:TList);
+  procedure RandomScene(scList:TList);
+  procedure SpiralScene(scList:TList);
+  procedure IslandScene(scList:TList);
+  procedure BVHRandomScene(scList:TList);
+  procedure EvenlySpiralScene(scList:TList);
+  procedure TeapotScene(scList:TList);
+  procedure BunnyScene(scList:TList);
+  procedure SkyBunnyScene(scList:TList);
 
 implementation
 
@@ -500,10 +501,49 @@ begin
               sc.cam.d.new(0,-300,-250).norm,
               sc.cam.w,sc.cam.h,sc.cam.samps);
    sc.cam.PlaneDist:=70;
+
    bvh:=BVHSceneClass.create;
    bvh.loadObj('bunny100.obj');
    scList.add(bvh);
 end;
+
+procedure SkyBunnyScene(scList:TList);
+var
+   Cen,p,e,c:Vec3;
+   sph:ShapeListClass;
+   bvh:BVHSceneClass;
+begin
+   sc.cam.o.x:=sc.cam.o.x-60;
+   bvh:=BVHSceneClass.create;
+   bvh.loadObj('bunny30.obj');
+   scList.add(bvh);
+
+   
+   sph:=ShapeListClass.create;
+   Cen.new(50,40.8,-860);
+
+   sph.add(SphereClass.Create(1600,p.new(1,0,2)*3000,
+                              e.new(1,0.9,0.8)*1.2e1*1.56*2,
+                              ZeroVec, DIFF)); // sun
+   sph.add(SphereClass.Create(1560,p.new(1,0,2)*3500,
+                              e.new(1,0.5,0.05)*4.8e1*1.56*2,
+                              ZeroVec,  DIFF) ); // horizon sun2
+   sph.add(SphereClass.Create(10000,Cen+p.new(0,0,-200),
+                              e.new(0.00063842, 0.02001478, 0.28923243)*6e-2*8,
+                              c.new(0.7,0.7,1)*0.25,  DIFF)); // sky
+
+   sph.add(SphereClass.Create(100000,    p.new(50, -100000, 0),ZeroVec,c.new(0.3,0.3,0.3),DIFF)); // grnd
+   sph.add(SphereClass.Create(110000,    p.new(50, -110048.5, 0),
+                              e.new(0.9,0.5,0.05)*4,
+                              ZeroVec,DIFF));// horizon brightener
+   sph.add(SphereClass.Create(4e4,       p.new(50, -4e4-30, -3000),
+                              ZeroVec,
+                              c.new(0.2,0.2,0.2),DIFF));// mountains
+
+   scList.add(sph);
+end;
+
+
 
 begin
 end.

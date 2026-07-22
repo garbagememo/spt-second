@@ -4,15 +4,15 @@
 
 
 uses
-  {$ifdef unix}
-  cthreads,cmem,
-  {$endif}
-  SysUtils,Classes,Math,uVect,uBMP,getopts,uShape,uRadiance,uScene;
+   {$ifdef unix}
+   cthreads,cmem,
+   {$endif}
+   SysUtils,Classes,Math,uVect,uBMP,getopts,uShape,uRadiance,uScene;
 
 const
    MaxThread=32;
 var
-  BMP:BMPrecord;
+   BMP:BMPrecord;
 
 type
 
@@ -142,6 +142,7 @@ begin
    Randomize;
 
    case modelnum of
+      60: SkyBunnyScene(sc.scList);
       50: bunnyScene(sc.scList);
       40: TeapotScene(sc.scList);
       30: InitObjScene(sc.scList);

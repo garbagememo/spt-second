@@ -144,6 +144,7 @@ var
    materials: array of TMaterialRecord;
    mCount: Integer;
 begin
+   writeln('Load ObjFile=',FN);
    if Not(Assigned(Shapes) ) then writeln('Shapes is not assigned!!');
    vCount := 0; nCount := 0; mCount := 0;
    mRefl := DIFF; mColor.new(0.8, 0.8, 0.8); mEmit.new(0.0, 0.0, 0.0);
