@@ -2,6 +2,7 @@
 {$mode objfpc}
 {$modeswitch advancedrecords}
 
+
 uses
   {$ifdef unix}
   cthreads,cmem,
@@ -14,16 +15,7 @@ var
   BMP:BMPrecord;
 
 type
-   CamRecord=record
-      o,d:Vec3;
-      PlaneDist:real;
-      w,h,samps:integer;
-      cx,cy:Vec3;
-      function new(o_,d_:Vec3;w_,h_,samps_:integer):CamRecord;
-      function GetRay(x,y,sx,sy:integer):RayRecord;
-      procedure CamWrite;
-   end;
-   
+
    //スタックサイズが不定を嫌ってdynamic arrayは使わない
    LineArray=array[0..255*255] of rgbColor;
 
@@ -36,57 +28,7 @@ type
       procedure AddAxis;
    end;
 
-function CamRecord.new(o_,d_:Vec3;w_,h_,samps_:integer):CamRecord;
-begin
-  o:=o_;d:=d_;w:=w_;h:=h_;samps:=samps_;
-  cx.new(w * 0.5135 / h, 0, 0);
-  cy:= (cx/ d).norm* 0.5135;
-  PlaneDist:=140;
-  result:=self;
-end;
 
-function CamRecord.GetRay(x,y,sx,sy:integer):RayRecord;
-var
-   r1,r2,dx,dy:real;
-   dirct:Vec3;
-begin
-   r1 := 2 * random;
-   if (r1 < 1) then
-      dx := sqrt(r1) - 1
-   else
-      dx := 1 - sqrt(2 - r1);
-   r2 := 2 * random;
-   if (r2 < 1) then
-      dy := sqrt(r2) - 1
-   else
-      dy := 1 - sqrt(2 - r2);
-   dirct:= cy* (((sy + 0.5 + dy) / 2 + (h - y - 1)) / h - 0.5)
-      +cx* (((sx + 0.5 + dx) / 2 + x) / w - 0.5)
-      +d;
-   dirct:=dirct.norm;
-   result.o:= dirct* PlaneDist+o;
-   result.d := dirct;
-end;
-
-procedure CamRecord.CamWrite;
-var
-   r:RayRecord;
-begin
-   write(' o=');VecWriteln(o);
-   write(' d=');VecWriteln(d);
-   write(' cx=');VecWriteln(cx);
-   write(' cy=');VecWriteln(cy);
-   writeln('===0,0==');
-   r:=GetRay(0,0,0,0);
-   write(' r.o=');VecWriteln(r.o);
-   write(' r.d=');VecWriteln(r.d);
-   writeln('===320,240==');
-   r:=GetRay(320,240,0,0);
-   write(' r.o=');VecWriteln(r.o);
-   write(' r.d=');VecWriteln(r.d);
-end;
-
-  
 procedure TMyThread.Execute;
 var
    x,sx,sy,s:integer;
@@ -99,8 +41,8 @@ begin
          for sy := 0 to 1 do begin
             for sx := 0 to 1 do begin
                r:=ZeroVec;
-               for s := 0 to cam.samps - 1 do begin
-                  r:= r+sc.Radiance(cam.GetRay(x,y,sx,sy), 0)/ cam.samps;
+               for s := 0 to sc.cam.samps - 1 do begin
+                  r:= r+sc.Radiance(sc.cam.GetRay(x,y,sx,sy), 0)/ sc.cam.samps;
                end;(*samps*)
                tColor:=tColor+ ClampVector(r)* 0.25;
             end;(*sx*)
@@ -126,8 +68,6 @@ var
    i: integer;
    w,h,samps: integer;
    modelnum,threadnum:integer;
-   camPosition,camDirection : Vec3;
-   cam:CamRecord;
    AspectFlag:boolean;//trueの場合16:9
    ArgInt:integer;
    FN,ArgFN:string;
@@ -197,67 +137,39 @@ begin
    writeln('threads=',threadnum);
    writeln('output=',FN);
    BMP.new(w,h);
-   sc.new;
+   sc.new(w,h,samps);
 
    Randomize;
-   cam.new(camPosition.new(50, 52, 295.6),camDirection.new(0, -0.042612, -1).norm,w,h,samps );
+
    case modelnum of
-      40:begin
-            TestScene(sc.scList);
-          end;
-      30:begin
-            InitObjScene(sc.scList);
-         end;
-      20:begin
-            bvhRandomScene(sc.scList);
-            cam.new(camPosition.new(55,40,295.6),
-                    camDirection.new(0,-0.12,-1).norm,
-                    w,h,samps);
-            cam.PlaneDist:=70;
-         end;
-      11:begin
-            EvenlySpiralScene(sc.scList);
-            cam.new(camPosition.new(-10,150,220),
-                    camDirection.new(0,-150,-200).norm,
-                    w,h,samps);
-            cam.PlaneDist:=70;
-         end;
-      10:begin
-            SpiralScene(sc.scList);
-            cam.new(camPosition.new(-10,150,220),
-                    camDirection.new(0,-150,-200).norm,
-                    w,h,samps);
-            cam.PlaneDist:=70;
-         end;
-      6:IslandScene(sc.ScList);
-      5:begin
-           RandomScene(sc.scList);
-           cam.new(camPosition.new(55,40,295.6),
-                   camDirection.new(0,-0.12,-1).norm,
-                   w,h,samps);
-           cam.PlaneDist:=70;
-        end;
-      4:WadaScene(sc.scList);
-      3:ForestScene(sc.scList);
-      2:SkyScene(sc.scList);
-      1:InitNEScene(sc.scList);
-      else begin
-        InitScene(sc.scList);
-      end;
+      50: bunnyScene(sc.scList);
+      40: TeapotScene(sc.scList);
+      30: InitObjScene(sc.scList);
+      20: bvhRandomScene(sc.scList);
+      11: EvenlySpiralScene(sc.scList);
+      10: SpiralScene(sc.scList);
+      6:  IslandScene(sc.ScList);
+      5:  RandomScene(sc.scList);
+      4:  WadaScene(sc.scList);
+      3:  ForestScene(sc.scList);
+      2:  SkyScene(sc.scList);
+      1:  InitNEScene(sc.scList);
+   else
+      InitScene(sc.scList);
    end;(*case*)
 
    writeln ('The time is : ',TimeToStr(Time));
    StarTime:=Time; 
-   BMP.new(cam.w,cam.h);
+
    for i:=0 to ThreadNum-1 do begin
       ThreadAry[i]:=TMyThread.Create(true);
       ThreadAry[i].FreeOnTerminate:=false;
       //falseにしないとスレッドが休止時の後始末ができない。
       ThreadAry[i].y:=i;
-      ThreadAry[i].wide:=cam.w;
-      ThreadAry[i].hight:=cam.h;
-      ThreadAry[i].cam:=cam;
-      ThreadAry[i].samps:=samps;
+      ThreadAry[i].wide:=sc.cam.w;
+      ThreadAry[i].hight:=sc.cam.h;
+      ThreadAry[i].cam:=sc.cam;
+      ThreadAry[i].samps:=sc.cam.samps;
       ThreadAry[i].yInc:=ThreadNum;
    end;
    writeln('Setup!');

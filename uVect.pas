@@ -27,8 +27,18 @@ type
     RayRecord=record
        o, d:Vec3;
        function new(o_,d_:Vec3):RayRecord;
-      end;
-
+    end;
+    
+   CamRecord=record
+      o,d:Vec3;
+      PlaneDist:real;
+      w,h,samps:integer;
+      cx,cy:Vec3;
+      function new(o_,d_:Vec3;w_,h_,samps_:integer):CamRecord;
+      function GetRay(x,y,sx,sy:integer):RayRecord;
+      procedure CamWrite;
+   end;
+   
    function ClampVector(v:Vec3):Vec3;
    function ColToRGB(v:Vec3):rgbColor;
 const
@@ -111,11 +121,11 @@ end;
 
 procedure VecWriteln(V:Vec3);
 begin
-    writeln(v.x:8:3,':',v.y:8:3,':',v.z:8:3);
+    writeln(v.x:7:3,':',v.y:7:3,':',v.z:7:3);
 end;
 procedure WriteVec(v:Vec3);
 begin
-   write('@',v.x:8:3,':',v.y:8:3,':',v.z:8:3);
+   write('(',v.x:7:3,':',v.y:7:3,':',v.z:7:3,')');
 end;
 
 
@@ -196,7 +206,57 @@ begin
     result.g:=ColToByte(v.y);
     result.b:=ColToByte(v.z);
 end;
+function CamRecord.new(o_,d_:Vec3;w_,h_,samps_:integer):CamRecord;
+begin
+  o:=o_;d:=d_;w:=w_;h:=h_;samps:=samps_;
+  cx.new(w * 0.5135 / h, 0, 0);
+  cy:= (cx/ d).norm* 0.5135;
+  PlaneDist:=140;
+  result:=self;
+end;
 
+function CamRecord.GetRay(x,y,sx,sy:integer):RayRecord;
+var
+   r1,r2,dx,dy:real;
+   dirct:Vec3;
+begin
+   r1 := 2 * random;
+   if (r1 < 1) then
+      dx := sqrt(r1) - 1
+   else
+      dx := 1 - sqrt(2 - r1);
+   r2 := 2 * random;
+   if (r2 < 1) then
+      dy := sqrt(r2) - 1
+   else
+      dy := 1 - sqrt(2 - r2);
+   dirct:= cy* (((sy + 0.5 + dy) / 2 + (h - y - 1)) / h - 0.5)
+      +cx* (((sx + 0.5 + dx) / 2 + x) / w - 0.5)
+      +d;
+   dirct:=dirct.norm;
+   result.o:= dirct* PlaneDist+o;
+   result.d := dirct;
+end;
+
+procedure CamRecord.CamWrite;
+var
+   r:RayRecord;
+begin
+   write(' o=');VecWriteln(o);
+   write(' d=');VecWriteln(d);
+   write(' cx=');VecWriteln(cx);
+   write(' cy=');VecWriteln(cy);
+   writeln('===0,0==');
+   r:=GetRay(0,0,0,0);
+   write(' r.o=');VecWriteln(r.o);
+   write(' r.d=');VecWriteln(r.d);
+   writeln('===320,240==');
+   r:=GetRay(320,240,0,0);
+   write(' r.o=');VecWriteln(r.o);
+   write(' r.d=');VecWriteln(r.d);
+end;
+
+  
 begin
 end.
    

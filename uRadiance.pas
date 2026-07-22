@@ -24,7 +24,8 @@ type
 
    SceneRecord = record
       scList:TList;//List of SceneListClass
-      procedure new;
+      cam:CamRecord;
+      procedure new(w,h,samps:integer);
       function Radiance(const r:RayRecord;depth:integer):Vec3;
    end;
 
@@ -75,7 +76,6 @@ function BVHSceneClass.intersect(const r:RayRecord):HitInfo;
 begin
    result.obj:=nil;
    result:=bvh.intersect(r,shapes);
-   if result.isHit then result.obj:=GetObj(result.id);
 end;
 
 procedure BVHSceneClass.MakeBVHNode;
@@ -95,9 +95,12 @@ begin
    MakeBVHNode
 end;
 
-procedure SceneRecord.new;
+procedure SceneRecord.new(w,h,samps:integer);
+var
+   camPosition,camDirection : Vec3;
 begin
    scList:=TList.create;
+   cam.new(camPosition.new(50, 52, 295.6),camDirection.new(0, -0.042612, -1).norm,w,h,samps );
 end;
 
 function SceneRecord.Radiance(const r:RayRecord;depth:integer):Vec3;

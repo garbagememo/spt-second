@@ -6,7 +6,7 @@
 interface
 uses uVect,uShape,Math,Classes;
 const
-  Nil_Leaf=16384;
+  Nil_Leaf=-1;
 type
   IntegerArray=array of integer;
 
@@ -34,20 +34,54 @@ begin
   end ;(*case*)
 end;
 
-procedure AABBSort(var a: array of integer;sph:TList);//バブルソート
+// クイックソート用の内部処理関数
+procedure QuickSortAABBInternal(var vals: array of real; var a: array of integer; L, R: integer);
 var
-   i, j, h,axis: integer;
-   ar:real;
+  I, J, TmpA: integer;
+  Pivot, TmpVal: real;
 begin
-   ar:=random;
-   if ar<0.33 then axis:=1 else if ar<0.67 then axis:=2 else axis:=3;
-   for i := 0 to High(a) do begin
-       for j := 1 to High(a) - i  do begin
-           if GetAABBVal(a[j],axis,sph) < GetAABBVal(a[j-1],axis,sph) then begin
-             h:=a[j-1];a[j-1]:=a[j];a[j]:=h;
-         end;
-       end;
-  end;
+  repeat
+    I := L;
+    J := R;
+    Pivot := vals[(L + R) div 2];
+    repeat
+      while vals[I] < Pivot do Inc(I);
+      while vals[J] > Pivot do Dec(J);
+      if I <= J then begin
+        // キャッシュ値の入れ替え
+        TmpVal := vals[I]; vals[I] := vals[J]; vals[J] := TmpVal;
+        // 元のインデックス配列の入れ替え
+        TmpA := a[I]; a[I] := a[J]; a[J] := TmpA;
+        Inc(I);
+        Dec(J);
+      end;
+    until I > J;
+    if L < J then QuickSortAABBInternal(vals, a, L, J);
+    L := I;
+  until I >= R;
+end;
+
+procedure AABBSort(var a: array of integer; sph: TList);
+var
+  i, axis: integer;
+  ar: real;
+  vals: array of real;
+begin
+  if Length(a) <= 1 then Exit;
+
+  // 1. 軸の決定
+  ar := random;
+  if ar < 0.33 then axis := 1 
+  else if ar < 0.67 then axis := 2 
+  else axis := 3;
+
+  // 2. GetAABBVal の事前計算
+  SetLength(vals, Length(a));
+  for i := 0 to High(a) do
+    vals[i] := GetAABBVal(a[i], axis, sph);
+
+  // 3. ジェネリクスを使わない自作クイックソートを実行
+  QuickSortAABBInternal(vals, a, 0, High(a));
 end;
 
 //ary upAry DownAry はsphの添字が入ってる配列。これでbvhツリーの葉を指定している

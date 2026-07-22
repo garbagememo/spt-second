@@ -1,4 +1,4 @@
-﻿unit uObjShape;
+unit uObjShape;
 
 {$MODE objfpc}{$H+}
 {$INLINE ON}
@@ -6,6 +6,9 @@
 
 interface
 uses SysUtils,Classes,uVect,uBMP,Math,getopts,uMaterial,uShape;
+
+const
+   EPS2=EPS*EPS;
 
 type
    PolygonClass = class(ShapeClass)
@@ -18,6 +21,9 @@ type
 
    procedure LoadObjFile(FN:string;Shapes:TList);
    procedure SetAttribShapeList(Shapes:TList;e_,c_:Vec3;refl_:RefType);
+
+var
+   PolygonDumpFlag:boolean;   
 
 implementation
 
@@ -43,12 +49,12 @@ begin
    else
       n := n_.Norm;
 
-   BoundBox.new(BoundMin.new(math.min(v0.x,math.min(v1.x,v2.x))-eps,
-                             math.min(v0.y,math.min(v1.y,v2.y))-eps,
-                             math.min(v0.z,math.min(v1.z,v2.z))-eps ),
-                BoundMax.new(math.max(v0.x,math.max(v1.x,v2.x))+eps,
-                             math.max(v0.y,math.max(v1.y,v2.y))+eps,
-                             math.max(v0.z,math.max(v1.z,v2.z))+eps ));
+   BoundBox.new(BoundMin.new(math.min(v0.x,math.min(v1.x,v2.x)),
+                             math.min(v0.y,math.min(v1.y,v2.y)),
+                             math.min(v0.z,math.min(v1.z,v2.z)) ),
+                BoundMax.new(math.max(v0.x,math.max(v1.x,v2.x)),
+                             math.max(v0.y,math.max(v1.y,v2.y)),
+                             math.max(v0.z,math.max(v1.z,v2.z)) ));
    
 end;
 
@@ -57,24 +63,24 @@ var
    edge1, edge2, tvec, pvec, qvec: Vec3;
    det, inv_det, t, u, v: real;
 begin
-   Result.t := INF;
+   result.t := INF;
    
    edge1 := v1 - v0; edge2 := v2 - v0;
    pvec := r.d / edge2;
-   det := edge1.Dot(pvec);
-   if Abs(det) < 1e-8 then Exit;
+   det := edge1*pvec;
+   if abs(det) < EPS2 then exit;
    inv_det := 1.0 / det;
    
    tvec := r.o - v0;
-   u := tvec.Dot(pvec) * inv_det;
-   if (u < 0.0) or (u > 1.0) then Exit;
+   u := tvec*pvec * inv_det;
+   if (u < 0.0) or (u > 1.0) then exit;
    
    qvec := tvec / edge1;
-   v := r.d.Dot(qvec) * inv_det;
-   if (v < 0.0) or (u + v > 1.0) then Exit;
+   v := r.d*qvec * inv_det;
+   if (v < 0.0) or (u + v > 1.0) then exit;
    
-   t := edge2.Dot(qvec) * inv_det;
-   if t > 1e-4 then  Result.t := t;
+   t := edge2*qvec * inv_det;
+   if t > EPS then  result.t := t;
 end;
 
 function PolygonClass.GetNorm(x:Vec3):Vec3;
@@ -89,47 +95,51 @@ begin
 end;
 
 
+
 procedure LoadObjFile(FN:string;Shapes:TList);
 // fトークンから要素（v/vt/vn）を安全に分解抽出するヘルパー関数
-procedure ParseFaceToken(token: string; var vIdx, nIdx: Integer);
-var
-   p1, p2: Integer;
-   vStr, nStr: string;
-begin
-   vIdx := 0; nIdx := 0;
-   p1 := Pos('/', token);
-   if p1 = 0 then begin
-      vIdx := StrToInt(token);
-      exit;
-   end;
-   vStr := Copy(token, 1, p1 - 1);
-   if vStr <> '' then vIdx := StrToInt(vStr);
+  procedure ParseFaceToken(token: string; var vIdx, nIdx: Integer);
+  var
+     p1, p2: Integer;
+     vStr, nStr: string;
+  begin
+     vIdx := 0; nIdx := 0;
+     p1 := Pos('/', token);
+     if p1 = 0 then begin
+        vIdx := StrToIntDef(token, 0);
+        exit;
+     end;
+     vStr := Copy(token, 1, p1 - 1);
+     if vStr <> '' then vIdx := StrToIntDef(vStr, 0);
    
-   Delete(token, 1, p1);
-   p2 := Pos('/', token);
-   if p2 = 0 then exit; // vnなし (v/vt のケース)
+     Delete(token, 1, p1);
+     p2 := Pos('/', token);
+     if p2 = 0 then exit; // vnなし (v/vt のケース)
    
-   // v//vn または v/vt/vn のケースにおける vn の抽出
-   nStr := Copy(token, p2 + 1, MaxInt);
-   if nStr <> '' then nIdx := StrToInt(nStr);
-end;
-
+     // v//vn または v/vt/vn のケースにおける vn の抽出
+     nStr := Copy(token, p2 + 1, MaxInt);
+     if nStr <> '' then nIdx := StrToIntDef(nStr, 0);
+  end;
 var
    f: TextFile;
-   line, token, mtlFile: string;
+   line, token, mtlFile, tStr: string;
    vertices: array of Vec3;
    normals: array of Vec3;
    vCount, nCount: Integer;
    x, y, z: Double;
-   t1, t2, t3: string;
-   p1, p2, p3, n1, n2, n3: Integer;
-   dummy: Integer;
+   p1, p2, p3, n1: Integer;
+   dummy, i, pIdx: Integer;
    mRefl: RefType;
    mColor: Vec3;
-   mEmit: Vec3; // 追加：現在の発光色用変数
+   mEmit: Vec3;
    polyN: Vec3;
    poly: PolygonClass;
    
+   // 可変長面分解用の配列
+   fTokens: array of string;
+   fVIdx, fNIdx: array of Integer;
+   fCount: Integer;
+
    // 複数マテリアル管理用の動的配列
    materials: array of TMaterialRecord;
    mCount: Integer;
@@ -166,7 +176,7 @@ begin
                materials[mCount - 1].Color.New(x, y, z);
             end;
          end
-         else if token = 'Ke' then begin // 追加：発光色の読み込み
+         else if token = 'Ke' then begin // 発光色の読み込み
             if mCount > 0 then begin
                line := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
                x := StrToFloat(Copy(line, 1, Pos(' ', line + ' ') - 1));
@@ -185,7 +195,7 @@ begin
                   materials[mCount - 1].Refl := REFR;  // 透明体・屈折（ガラス等）
             end;
          end
-         else if token = 'Ni' then begin // 追加：屈折率の定義があれば透明体(REFR)に設定
+         else if token = 'Ni' then begin // 屈折率の定義があれば透明体(REFR)に設定
             if mCount > 0 then
                materials[mCount - 1].Refl := REFR;
          end;
@@ -202,7 +212,7 @@ begin
       if line = '' then Continue;
       token := Copy(line, 1, Pos(' ', line + ' ') - 1);
       
-      // 追加：マテリアルの指定（切り替え）
+      // マテリアルの指定（切り替え）
       if token = 'usemtl' then begin
          token := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
          for dummy := 0 to mCount - 1 do begin
@@ -236,30 +246,64 @@ begin
          Inc(nCount); SetLength(normals, nCount);
          normals[nCount - 1].New(x, y, z);
       end
-      // 面情報の読み込み
+      // 面情報の読み込み（3角形・4角形・多角形対応）
       else if token = 'f' then begin
-         line := Trim(Copy(line, Pos(' ', line) + 1, MaxInt));
-         t1 := Copy(line, 1, Pos(' ', line + ' ') - 1);
          line := Trim(Copy(line, Pos(' ', line + ' ') + 1, MaxInt));
-         t2 := Copy(line, 1, Pos(' ', line + ' ') - 1);
-         t3 := Trim(Copy(line, Pos(' ', line + ' ') + 1, MaxInt));
          
-         ParseFaceToken(t1, p1, n1);
-         ParseFaceToken(t2, p2, n2);
-         ParseFaceToken(t3, p3, n3);
-         
-         if (n1 > 0) and (n1 <= nCount) then
-            polyN := normals[n1 - 1]
-         else
-            polyN.New(0, 0, 0);
-         
-         // 修正：第5引数に ZeroVec ではなくパースした発光色 mEmit を渡す
-         poly := PolygonClass.Create(vertices[p1 - 1],
-                                     vertices[p2 - 1],
-                                     vertices[p3 - 1],
-                                     polyN, mEmit, mColor, mRefl);
-         Shapes.Add(poly);
-         Poly.dump;
+         // 1. 行内の頂点要素トークンを全て分解抽出
+         fCount := 0;
+         SetLength(fTokens, 0);
+         while line <> '' do begin
+            pIdx := Pos(' ', line);
+            if pIdx = 0 then begin
+               tStr := line;
+               line := '';
+            end else begin
+               tStr := Copy(line, 1, pIdx - 1);
+               line := Trim(Copy(line, pIdx + 1, MaxInt));
+            end;
+            if tStr <> '' then begin
+               Inc(fCount);
+               SetLength(fTokens, fCount);
+               fTokens[fCount - 1] := tStr;
+            end;
+         end;
+
+         // 2. 3頂点以上ある場合、三角分割（Triangle Fan）して登録
+         if fCount >= 3 then begin
+            SetLength(fVIdx, fCount);
+            SetLength(fNIdx, fCount);
+            for i := 0 to fCount - 1 do
+               ParseFaceToken(fTokens[i], fVIdx[i], fNIdx[i]);
+
+            // 頂点 (v0, v_i, v_{i+1}) で三角形を構築
+            for i := 1 to fCount - 2 do begin
+               p1 := fVIdx[0];
+               p2 := fVIdx[i];
+               p3 := fVIdx[i + 1];
+
+               // 面法線の選択（有効な法線インデックスが存在すれば割り当て）
+               n1 := fNIdx[0];
+               if (n1 > 0) and (n1 <= nCount) then
+                  polyN := normals[n1 - 1]
+               else if (fNIdx[i] > 0) and (fNIdx[i] <= nCount) then
+                  polyN := normals[fNIdx[i] - 1]
+               else
+                  polyN.New(0, 0, 0);
+
+               // インデックスが範囲内であることを確認してPolygonを追加
+               if (p1 > 0) and (p1 <= vCount) and
+                  (p2 > 0) and (p2 <= vCount) and
+                  (p3 > 0) and (p3 <= vCount) then begin
+                  poly := PolygonClass.Create(vertices[p1 - 1],
+                                              vertices[p2 - 1],
+                                              vertices[p3 - 1],
+                                              polyN, mEmit, mColor, mRefl);
+                  Shapes.Add(poly);
+                  if PolygonDumpFlag then poly.dump;
+               end;
+            end;
+         end;
       end;
    end;
    CloseFile(f);
@@ -274,5 +318,7 @@ begin
       ShapeClass(Shapes[i]).SetAttrib(e_,c_,refl_);
    end;
 end;
+
 begin
+   PolygonDumpFlag:=false;
 end.

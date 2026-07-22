@@ -14,7 +14,7 @@ type
    
    MaterialClass=class
       function GetRay(r:RayRecord;x,n,nl:Vec3):TraceInfo;virtual;abstract;
-      function IDStr:string;virtual;abstract;
+      function IDStr:string;virtual;
    end;
    DiffuseClass=Class(MaterialClass)
       function GetRay(r:RayRecord;x,n,nl:Vec3):TraceInfo;override;
@@ -38,6 +38,11 @@ type
 
    
 implementation
+
+function MaterialClass.IDStr:string;
+begin
+   result:='';
+end;
 
 function DiffuseClass.GetRay(r:RayRecord;x,n,nl:Vec3):TraceInfo;
 var
